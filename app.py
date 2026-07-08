@@ -2,56 +2,40 @@ from flask import Flask, request, jsonify, Response
 import requests
 import json
 import os
+import gspread
+from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
 
-# API Keys
+# API Keys & Credentials
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
-VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN",  "aung_phyo_thu_12")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "my_secret_token_123")
 
-# AI ကို စျေးရောင်းခိုင်းမယ့် လမ်းညွှန်ချက် (System Instruction)
-system_instruction = """
-မင်းက အွန်လိုင်းရှော့ပင်းတစ်ခုက တကယ့်လူသား အရောင်းဝန်ထမ်းတစ်ယောက် ဖြစ်တယ်။ 
-ယဉ်ကျေးပျူငှါစွာ ပြောဆိုပါ။ မြန်မာလိုပဲ ပြန်ဖြေပါ။
-ကိုယ့်ဆိုင်မှာ ရောင်းတဲ့ပစ္စည်းစာရင်း:
-- အင်္ကျီ (စျေး: ၁၅,၀၀၀ ကျပ်၊ အရောင်: အနက်၊ အဖြူ)
-- ဘောင်းဘီ (စျေး: ၂၀,၀၀၀ ကျပ်၊ အရောင်: ဂျင်းပြာ)
-စျေးနှုန်းနဲ့ အရောင်ကို မေးရင် အတိအကျဖြေပါ။ ပစ္စည်းမှာချင်ရင် လိပ်စာနဲ့ ဖုန်းနံပါတ် တောင်းပါ။
-"""
+# Google Sheet အတွက် Render ကနေ JSON credentials လှမ်းဖတ်ခြင်း
+GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
 
-def ask_gemini(user_message):
-    # grpcio မလိုဘဲ HTTP API ကနေ Gemini ဆီ တိုက်ရိုက်မေးတဲ့အပိုင်း
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{"parts": [{"text": user_message}]}],
-        "systemInstruction": {"parts": [{"text": system_instruction}]}
-    }
+def save_to_sheet(user_id, message_text):
     try:
-        response = requests.post(url, headers=headers, json=payload)
-        res_json = response.json()
-        return res_json['candidates'][0]['content']['parts'][0]['text']
+        if not GOOGLE_CREDENTIALS:
+            return
+        
+        # Google Sheet ချိတ်ဆက်ခြင်း
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds_dict = json.loads(GOOGLE_CREDENTIALS)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        client = gspread.authorize(creds)
+        
+        # ကိုယ့် Google Sheet နာမည် အတိအကျ ထည့်ပါ
+        sheet = client.open("AI_Orders_Sheet").sheet1
+        
+        # Sheet ထဲသို့ ဒေတာ အသစ် သွားရိုက်ထည့်ခြင်း (ဥပမာ- Customer ID နဲ့ သူပြောတဲ့စာ)
+        sheet.append_row([user_id, message_text])
+        print("Saved to Google Sheet successfully!")
     except Exception as e:
-        print("Error calling Gemini:", e)
-        return "ခဏလေး စောင့်ပေးပါဗျာ။"
+        print("Error saving to sheet:", e)
 
-@app.route('/', methods=['GET'])
-def index():
-    return "Facebook AI Bot is Running!"
-
-@app.route('/webhook', methods=['GET'])
-def verify():
-    mode = request.args.get("hub.mode")
-    token = request.args.get("hub.verify_token")
-    challenge = request.args.get("hub.challenge")
-    
-    if mode and token:
-        if mode == "subscribe" and token == VERIFY_TOKEN:
-            return challenge, 200
-        else:
-            return "Verification failed", 403
-    return "Hello World", 200
+# ... (စောစောက ask_gemini, verify function တွေက အတူတူပါပဲ) ...
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -64,10 +48,11 @@ def webhook():
                     sender_id = messaging_event["sender"]["id"]
                     user_message = messaging_event["message"]["text"]
                     
-                    # Gemini AI ဆီ စာပို့ပြီး အဖြေတောင်းခြင်း
+                    # 💡 ဒီနေရာမှာ Customer ဆီက စာလာတိုင်း Google Sheet ထဲ သွားသိမ်းခိုင်းလိုက်တာပါ
+                    save_to_sheet(sender_id, user_message)
+                    
                     bot_reply = ask_gemini(user_message)
                     
-                    # AI အဖြေကို Messenger API သုံးပြီး Customer ဆီ ပြန်ပို့ခြင်း
                     fb_url = f"https://graph.facebook.com/v20.0/me/messages?access_token={PAGE_ACCESS_TOKEN}"
                     payload = {
                         "recipient": {"id": sender_id},
@@ -77,5 +62,5 @@ def webhook():
                     
     return Response(status=200)
 
-if __name__ == '__main__':
+if name == '__main__':
     app.run(host='0.0.0.0', port=5000)
