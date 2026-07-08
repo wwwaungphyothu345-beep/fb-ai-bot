@@ -27,7 +27,7 @@ def save_to_sheet(user_id, message_text):
         client = gspread.authorize(creds)
         
         # ကိုယ့် Google Sheet နာမည် အတိအကျ ထည့်ပါ
-        sheet = client.open_by_key("1CJf69o5Gp_oxtoE7tDog3KPov-ylC0jc67T4XTuFlxU").sheet1
+        sheet = client.open_by_key("1CJf69o5Gp_oxtoE7tDog3KPov-ylC0jc67T4XTuFlxU").worksheet("Orders")
         
         # Sheet ထဲသို့ ဒေတာ အသစ် သွားရိုက်ထည့်ခြင်း (ဥပမာ- Customer ID နဲ့ သူပြောတဲ့စာ)
         sheet.append_row([user_id, message_text])
