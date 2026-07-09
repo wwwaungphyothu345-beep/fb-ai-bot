@@ -10,7 +10,7 @@ app = Flask(__name__)
 # API Keys & Credentials
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
-VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "my_secret_token_123")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "aung_phyo_thu_12")
 
 # Google Sheet အတွက် Render ကနေ JSON credentials လှမ်းဖတ်ခြင်း
 GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
